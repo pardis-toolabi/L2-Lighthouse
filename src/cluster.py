@@ -54,6 +54,68 @@ def preprocess_data(df):
     
     return scaled_features, features.columns
 
+## added  UMAP 
+def cluster_wallets(features, n_clusters=4):
+    reducer = umap.UMAP(n_components=2, random_state=42)
+    umap_features = reducer.fit_transform(features)
+    
+    dbscan = DBSCAN(eps=0.5, min_samples=5)
+    clusters = dbscan.fit_predict(features)
+    
+    if len(np.unique(clusters)) < 3:
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+        clusters = kmeans.fit_predict(features)
+    
+    return clusters, umap_features
+
+def visualize_clusters(df, clusters, umap_features):
+    plt.figure(figsize=(12, 8))
+    
+    scatter = plt.scatter(
+        umap_features[:, 0], 
+        umap_features[:, 1], 
+        c=clusters, 
+        cmap='viridis',
+        alpha=0.6,
+        s=50
+    )
+    
+    for cluster_id in np.unique(clusters):
+        cluster_points = umap_features[clusters == cluster_id]
+        centroid = cluster_points.mean(axis=0)
+        
+        cluster_data = df[clusters == cluster_id]
+        props = {
+            'avg_tx': cluster_data['tx_count'].mean(),
+            'avg_contracts': cluster_data['unique_contracts'].mean(),
+            'nft_ratio': cluster_data['nft_ratio'].mean()
+        }
+        
+        if props['avg_tx'] > 300:
+            label = "🤖 Sybil"
+        elif props['avg_contracts'] < 8 and props['nft_ratio'] > 0.7:
+            label = "🐳 Whale"
+        elif props['avg_tx'] < 30:
+            label = "🧍 Retail"
+        else:
+            label = f"Cluster {cluster_id}"
+        
+        plt.annotate(
+            label, 
+            centroid,
+            fontsize=12,
+            ha='center',
+            bbox=dict(boxstyle="round,pad=0.3", fc="white", alpha=0.8)
+        )
+    
+    plt.title("L2 Wallet Activity Clustering", fontsize=16)
+    plt.xlabel("UMAP Dimension 1")
+    plt.ylabel("UMAP Dimension 2")
+    plt.colorbar(scatter, label='Cluster ID')
+    plt.tight_layout()
+    plt.savefig('clusters.png')
+    plt.show()
+
 
 
 if __name__ == "__main__":
